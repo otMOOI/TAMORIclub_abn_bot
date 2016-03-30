@@ -1,0 +1,4 @@
+cssselect==0.9.1
+lxml==3.5.0
+python-twitter==2.2
+selenium==2.52.0
