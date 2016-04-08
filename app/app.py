@@ -92,6 +92,8 @@ def scrape_backnumber(driver, date):
     driver.get(url)
     root = lxml.html.fromstring(driver.page_source)
 
+    plot = None
+
     date = date + datetime.timedelta(days=delay)
     pattern = re.compile(u'^(\d{1,2})月(\d{1,2})日$')
     for section in root.cssselect('section.card'):
@@ -101,9 +103,28 @@ def scrape_backnumber(driver, date):
                 month, day = match.groups()
                 if int(month) is date.month and int(day) is date.day:
                     for p in section.cssselect('p'):
-                        return p.text_content().encode('utf-8')
+                        plot = p.text_content().encode('utf-8')
+                        break
                 else:
                     continue
+    if not plot:
+        # バックナンバーで見つけられなかった場合にはトップページをスクレイピングする
+        url = 'http://www.tv-asahi.co.jp/tamoriclub/sphone/'
+        driver.get(url)
+        root = lxml.html.fromstring(driver.page_source)
+        for section in root.cssselect('section.card'):
+            for li in section.cssselect('ul > li'):
+                for div in li.cssselect('div'):
+                    match = pattern.search(div.text_content())
+                    if match:
+                        month, day = match.groups()
+                        if int(month) is date.month and int(day) is date.day:
+                            for p in li.cssselect('p'):
+                                plot = p.text_content().encode('utf-8')
+                                break
+                        else:
+                            continue
+    return plot
 
 @scheduler.scheduled_job('cron', hour=__WORK_HOUR)
 def timed_job():
