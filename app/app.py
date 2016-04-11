@@ -9,7 +9,6 @@ import time
 import twitter
 
 from selenium import webdriver
-from apscheduler.schedulers.blocking import BlockingScheduler
 
 
 # 定数
@@ -18,11 +17,8 @@ __CONSUMER_SECRET = '**************************************************'
 __ACCESS_TOKEN = '******************-*******************************'
 __ACCESS_TOKEN_SECRET = '*********************************************'
 
-__WORK_HOUR = 19 # 稼動する時刻（UTCでの指定なので日本時間の4:00a.m.）
 __WORK_DAY = 3 # 稼動する曜日（Pythonでは月曜を0、日曜を6として定義しているので木曜日）
 
-
-scheduler = BlockingScheduler()
 
 def scrape_program_table(driver):
     u'''ABNの番組表をスクレイピングして放送日と時間を取得
@@ -126,8 +122,7 @@ def scrape_backnumber(driver, date):
                             continue
     return plot
 
-@scheduler.scheduled_job('cron', hour=__WORK_HOUR)
-def timed_job():
+if __name__ == '__main__':
     api = twitter.Api(consumer_key=__CONSUMER_KEY,
                     consumer_secret=__CONSUMER_SECRET,
                     access_token_key=__ACCESS_TOKEN,
@@ -178,6 +173,3 @@ def timed_job():
     if plot:
         # 放送内容が取得されていればツイートを実行
         print api.PostUpdate('%s年%s月%s日 %s～ %s' % (oa_datetime['date'].year, oa_datetime['date'].month, oa_datetime['date'].day, oa_datetime['time'], plot))
-
-if __name__ == '__main__':
-    scheduler.start()
