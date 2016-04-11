@@ -139,7 +139,7 @@ if __name__ == '__main__':
             time_local = time.localtime(unix_time)
 
             last_tw = datetime.datetime.fromtimestamp(time.mktime(time_local))
-            elapsed = last_tw - today
+            elapsed = today - last_tw
             if elapsed.days <= 7:
                 # 直近のツイートが1週間以内の場合は何もせず終了
                 exit()
