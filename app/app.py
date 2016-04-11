@@ -77,13 +77,13 @@ def scrape_program_table(driver):
 
 def scrape_backnumber(driver, date):
     u'''番組公式（のモバイル）サイトをスクレイピングして
-    15日前（前々回）の放送内容のバックナンバーを取得
+    8日前（前回）の放送内容のバックナンバーを取得
     @param  driver PhantomJSのドライバー
     @param  date 放送日
     @return 放送内容
     '''
 
-    delay = -15
+    delay = -8
     url = 'http://www.tv-asahi.co.jp/tamoriclub/sphone/backnumber.html'
     driver.get(url)
     root = lxml.html.fromstring(driver.page_source)
@@ -162,7 +162,7 @@ if __name__ == '__main__':
     if oa_datetime:
         try:
             # 番組公式（のモバイル）サイトをスクレイピングして
-            # 15日前（前々回）の放送内容のバックナンバーを取得
+            # 8日前（前回）の放送内容のバックナンバーを取得
             plot = scrape_backnumber(driver, oa_datetime['date'])
         except Exception as ex:
             print ex.message
