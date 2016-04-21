@@ -17,8 +17,8 @@ __CONSUMER_SECRET = '**************************************************'
 __ACCESS_TOKEN = '******************-*******************************'
 __ACCESS_TOKEN_SECRET = '*********************************************'
 
+__WORK_HOUR = 19 # 稼動する時刻（UTCでの指定なので日本時間の4:00a.m.）
 __WORK_DAY = 3 # 稼動する曜日（Pythonでは月曜を0、日曜を6として定義しているので木曜日）
-
 
 def scrape_program_table(driver):
     u'''ABNの番組表をスクレイピングして放送日と時間を取得
@@ -128,6 +128,11 @@ if __name__ == '__main__':
                     access_token_key=__ACCESS_TOKEN,
                     access_token_secret=__ACCESS_TOKEN_SECRET)
     today = datetime.datetime.now()
+
+    if today.hour is not __WORK_HOUR:
+        # 19時～20時（日本時間4時～5時）以外の時間帯以外なら何もせず終了
+        exit()
+
     if today.weekday() is __WORK_DAY:
         # 今日が稼働日であれば無条件に実行
         pass
