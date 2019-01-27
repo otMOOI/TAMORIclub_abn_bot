@@ -17,6 +17,8 @@ __CONSUMER_SECRET = '**************************************************'
 __ACCESS_TOKEN = '******************-*******************************'
 __ACCESS_TOKEN_SECRET = '*********************************************'
 
+__SCREEN_NAME = '**************'
+
 __WORK_HOUR = 19 # 稼動する時刻（UTCでの指定なので日本時間の4:00a.m.）
 __WORK_DAY = 3 # 稼動する曜日（Pythonでは月曜を0、日曜を6として定義しているので木曜日）
 
@@ -75,15 +77,15 @@ def scrape_program_table(driver):
                 }
             idx = idx + 1
 
-def scrape_backnumber(driver, date):
+def scrape_backnumber(driver, date, delay):
     u'''番組公式（のモバイル）サイトをスクレイピングして
     8日前（前回）の放送内容のバックナンバーを取得
     @param  driver PhantomJSのドライバー
     @param  date 放送日
+    @param  delay 遅れ日数
     @return 放送内容
     '''
 
-    delay = -8
     url = 'http://www.tv-asahi.co.jp/tamoriclub/sphone/backnumber.html'
     driver.get(url)
     root = lxml.html.fromstring(driver.page_source)
@@ -166,9 +168,16 @@ if __name__ == '__main__':
     plot = None
     if oa_datetime:
         try:
+            delay = -15 # 遅れ日数
+            # twitterアカウントのプロフィール文章から遅れ日数を取得
+            user_info = api.GetUser(screen_name=__SCREEN_NAME)
+            match = re.search(r'（(\d+)日遅れ）', user_info.description)
+            if match:
+                delay = -1 * int(match.group(1))
+
             # 番組公式（のモバイル）サイトをスクレイピングして
-            # 8日前（前回）の放送内容のバックナンバーを取得
-            plot = scrape_backnumber(driver, oa_datetime['date'])
+            # 放送内容のバックナンバーを取得
+            plot = scrape_backnumber(driver, oa_datetime['date'], delay)
         except Exception as ex:
             print ex.message
 
