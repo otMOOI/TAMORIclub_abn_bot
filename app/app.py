@@ -3,13 +3,14 @@
 
 import calendar
 import datetime
-import lxml.html
 import re
 import time
 import twitter
+import urllib
 
 from selenium import webdriver
-
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.chrome.options import Options
 
 # 定数
 __CONSUMER_KEY = '*************************'
@@ -24,20 +25,19 @@ __WORK_DAY = 3 # 稼動する曜日（Pythonでは月曜を0、日曜を6とし�
 
 def scrape_program_table(driver):
     u'''ABNの番組表をスクレイピングして放送日と時間を取得
-    @param  driver PhantomJSのドライバー
+    @param  driver HeadlessChromeのドライバー
     @return 放送日と時間(key = ('date', 'time'))
     '''
 
     url = 'http://www.abn-tv.co.jp/programtable/'
     driver.get(url)
-    root = lxml.html.fromstring(driver.page_source)
 
     days = []
     pattern = re.compile('^(\d{1,2})/(\d{1,2})\((.{1})\)$') # 例: '01/01(日)'
     todya = datetime.datetime.now()
-    for td in root.cssselect('table.tbl-programweek > thead > tr > td'):
+    for td in driver.find_elements_by_css_selector('table.tbl-programweek > thead > tr > td'):
         date = None
-        match = pattern.search(td.text_content())
+        match = pattern.search(td.text)
         if match:
             month, day, weekday = match.groups()
             year = todya.year
@@ -48,24 +48,24 @@ def scrape_program_table(driver):
             date = datetime.datetime(year, month, day)
         days.append(date)
 
-    for tr in root.cssselect('table.tbl-programweek > tbody > tr'):
+    for tr in driver.find_elements_by_css_selector('table.tbl-programweek > tbody > tr'):
         idx = 0
-        for td in tr.cssselect('td'):
-            for div in td.cssselect('div.program-info'):
-                name = div.cssselect('p.name')
+        for td in tr.find_elements_by_css_selector('td'):
+            for div in td.find_elements_by_css_selector('div.program-info'):
+                name = div.find_elements_by_css_selector('p.name')
                 if not name:
                     continue
                 else:
-                    name = lxml.html.tostring(name[0], method='text', encoding='unicode')
+                    name = name[0].text
                 pattern = re.compile(u'タモリ倶楽部')
                 match = pattern.search(name)
                 if not match:
                     continue
 
-                time = div.cssselect('time')
+                time = div.find_elements_by_css_selector('time')
                 if not time:
                     break
-                time = time[0].text_content()
+                time = time[0].text
                 pattern = re.compile('^(\d{1,2}):(\d{1,2})$')
                 match = pattern.search(time)
                 if not match:
@@ -78,50 +78,37 @@ def scrape_program_table(driver):
             idx = idx + 1
 
 def scrape_backnumber(driver, date, delay):
-    u'''番組公式（のモバイル）サイトをスクレイピングして
-    8日前（前回）の放送内容のバックナンバーを取得
-    @param  driver PhantomJSのドライバー
+    u'''番組公式サイトをスクレイピングしてバックナンバーから指定日数前の放送内容を取得
+    @param  driver HeadlessChromeのドライバー
     @param  date 放送日
     @param  delay 遅れ日数
     @return 放送内容
     '''
 
-    url = 'http://www.tv-asahi.co.jp/tamoriclub/sphone/backnumber.html'
+    url = urllib.quote('https://www.tv-asahi.co.jp/tamoriclub/#/バックナンバー?category=variety', safe=':/#?=&')
     driver.get(url)
-    root = lxml.html.fromstring(driver.page_source)
 
     plot = None
+    url = None
 
     date = date + datetime.timedelta(days=delay)
-    pattern = re.compile(u'^(\d{1,2})月(\d{1,2})日$')
-    for section in root.cssselect('section.card'):
-        for h2 in section.cssselect('h2'):
-            match = pattern.search(h2.text_content())
-            if match:
-                month, day = match.groups()
-                if int(month) is date.month and int(day) is date.day:
-                    for p in section.cssselect('p'):
-                        plot = p.text_content().encode('utf-8')
-                        break
-                else:
-                    continue
-    if not plot:
-        # バックナンバーで見つけられなかった場合にはトップページをスクレイピングする
-        url = 'http://www.tv-asahi.co.jp/tamoriclub/sphone/'
+    pattern = re.compile(u'(\d{1,2})月\s*(\d{1,2})日')
+    for a in driver.find_elements_by_css_selector('div#ipg-backnumber > a'):
+        match = pattern.search(a.text)
+        if match:
+            month, day = match.groups()
+            if int(month) is date.month and int(day) is date.day:
+                url = urllib.quote(a.get_attribute('href').encode('utf-8'), safe=':/#?=&')
+                break
+            else:
+                continue
+
+    if url:
         driver.get(url)
-        root = lxml.html.fromstring(driver.page_source)
-        for section in root.cssselect('section.card'):
-            for li in section.cssselect('ul > li'):
-                for div in li.cssselect('div'):
-                    match = pattern.search(div.text_content())
-                    if match:
-                        month, day = match.groups()
-                        if int(month) is date.month and int(day) is date.day:
-                            for p in li.cssselect('p'):
-                                plot = p.text_content().encode('utf-8')
-                                break
-                        else:
-                            continue
+        for div in driver.find_elements_by_css_selector("div.ipg-backnumber-article-text"):
+            plot = div.text
+            break
+
     return plot
 
 if __name__ == '__main__':
@@ -155,8 +142,14 @@ if __name__ == '__main__':
                 # 何らかの理由で前回の処理が実行されていないので再試行
                 break
 
-    # PhantomJSで擬似的にブラウザでWEBアクセスする（JavaScriptが実行される必要があるため）
-    driver = webdriver.PhantomJS()
+    # HeadlessChromeで擬似的にブラウザでWEBアクセスする（JavaScriptが実行される必要があるため）
+    options = Options()
+    options.add_argument('--headless')
+    '''
+    driver = webdriver.Chrome(chrome_options=options)
+    '''
+    options.binary_location = '/app/.apt/usr/bin/google-chrome'
+    driver = webdriver.Chrome(executable_path='chromedriver', chrome_options=options)
 
     oa_datetime = None
     try:
@@ -168,22 +161,25 @@ if __name__ == '__main__':
     plot = None
     if oa_datetime:
         try:
-            delay = -15 # 遅れ日数
+            delay = -8 # 遅れ日数
             # twitterアカウントのプロフィール文章から遅れ日数を取得
             user_info = api.GetUser(screen_name=__SCREEN_NAME)
-            match = re.search(r'（(\d+)日遅れ）', user_info.description)
+            match = re.search(r'（(\d+)日遅れ）', user_info.description.encode('utf-8'))
+
             if match:
                 delay = -1 * int(match.group(1))
-
-            # 番組公式（のモバイル）サイトをスクレイピングして
+            # 番組公式サイトをスクレイピングして
             # 放送内容のバックナンバーを取得
             plot = scrape_backnumber(driver, oa_datetime['date'], delay)
         except Exception as ex:
             print ex.message
 
-    # PhantomJSのドライバーを終了
+    # HeadlessChromeのドライバーを終了
     driver.quit()
 
     if plot:
         # 放送内容が取得されていればツイートを実行
-        print api.PostUpdate('%s年%s月%s日 %s～ %s' % (oa_datetime['date'].year, oa_datetime['date'].month, oa_datetime['date'].day, oa_datetime['time'], plot))
+        if len(plot) > 120:
+            # 放送内容が120文字を超える場合は先頭から80文字と末尾40文字に省略
+            plot = plot[:80] + u'……' + plot[-40:]
+        print api.PostUpdate(u'%s年%s月%s日 %s～ %s' % (oa_datetime['date'].year, oa_datetime['date'].month, oa_datetime['date'].day, oa_datetime['time'], plot))
